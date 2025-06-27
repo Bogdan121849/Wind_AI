@@ -127,6 +127,9 @@ celerybeat.pid
 # SageMath parsed files
 *.sage.py
 
+WindAi/*.parquet
+WindAi/*.csv
+
 # Environments
 .env
 .venv
