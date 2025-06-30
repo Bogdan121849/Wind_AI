@@ -127,8 +127,11 @@ celerybeat.pid
 # SageMath parsed files
 *.sage.py
 
-WindAi/*.parquet
-WindAi/*.csv
+WindAi/created_datasets/*.parquet
+WindAi/created_datasets/*.csv
+
+WindAi/given_datasets/*.parquet
+WindAi/given_datasets/*.parquet
 
 # Environments
 .env
