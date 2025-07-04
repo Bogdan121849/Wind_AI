@@ -25,7 +25,7 @@ class SARIMA:
 
         df["power_MW"] = pd.to_numeric(df["power_MW"], errors="coerce")
         nan_count = df["power_MW"].isnull().sum()
-        print(f"[DEBUG] {os.path.basename(self.file_path)}: dtype={df['power_MW'].dtype}, NaNs={nan_count}")
+        print(f"{os.path.basename(self.file_path)}: dtype={df['power_MW'].dtype}, NaNs={nan_count}")
         
         df = df.dropna(subset=["power_MW"])
 
@@ -70,7 +70,7 @@ class SARIMA:
     def plot_forecast(self, save_path=None):
         if self.forecast is None or self.test is None:
             raise ValueError("You must run evaluate() before plotting.")
-        
+
         steps = min(self.forecast_horizon, len(self.test))
         true_values = self.test[:steps]
         forecast_values = self.forecast[:steps]
@@ -84,12 +84,12 @@ class SARIMA:
         plt.legend()
         plt.grid(True)
         plt.tight_layout()
-        plt.show()
 
         if save_path:
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
             plt.savefig(save_path, dpi=300)
             print(f"Plot saved to: {save_path}")
+            plt.close()
         else:
             plt.show()
 
