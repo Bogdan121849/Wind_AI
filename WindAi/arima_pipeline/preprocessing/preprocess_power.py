@@ -49,6 +49,13 @@ class Preprocess_power_sarima:
             for region, group in self.df.groupby("bidding_area")
         }
 
+    def clean_final_data(self):
+        for region in list(self.regions):
+            df = self.regions[region]
+            df = df.dropna(subset=['power_MW'])  
+            df = df.drop(columns=['bidding_area', 'time'], errors='ignore')  
+            self.regions[region] = df
+
     def save_regions(self, output_dir="WindAi/arima_pipeline/created_datasets"):
         os.makedirs(output_dir, exist_ok=True)
         for region, df_region in self.regions.items():
@@ -62,6 +69,7 @@ class Preprocess_power_sarima:
         self.add_cyclical_time_features()
         self.aggregate_per_zone()
         self.split_by_region()
+        self.clean_final_data()
         self.save_regions()
 
 

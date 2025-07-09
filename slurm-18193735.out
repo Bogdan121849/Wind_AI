@@ -1,0 +1,56 @@
+Python 3.6.8
+Loaded dataset met_forecast with path /home2/s5549329/windAI_rug/WindAi/given_datasets/met_forecast.parquet
+Loaded 'met_forecast' with shape (6874212, 94)
+Loaded dataset met_nowcast with path /home2/s5549329/windAI_rug/WindAi/given_datasets/met_nowcast.parquet
+Loaded 'met_nowcast' with shape (2806427, 7)
+Loaded dataset power with path /home2/s5549329/windAI_rug/WindAi/given_datasets/wind_power_per_bidzone.parquet
+Loaded 'power' with shape (46011, 4)
+Loaded dataset meta with path /home2/s5549329/windAI_rug/WindAi/given_datasets/windparks_bidzone.csv
+Loaded 'meta' with shape (76, 5)
+Common windparks in all datasets: 59
+['Bessakerfjellet', 'Bjerk_VK Vindpark', 'Buheii Vindpark', 'Dønnesfjord Vind', 'Egersund Vindkrv', 'Einarsdalen', 'Engerfjellet', 'Fakken', 'Frøya Vindpark', 'Geitfjellet', 'Gismarvik Vindpark', 'Guleslettene Vindpark', 'Hamnefjell', 'Haraheia', 'Haram Kraft', 'Harbaksfjellet', 'Havøygavlen', 'Hennøy', 'Hitra', 'Hundhammerfjelle', 'Hån Vindpark', 'Høg Jæren', 'Kjølberget', 'Kjøllefjord vindpark', 'Kvenndalsfjellet', 'Kvitfjell vindpark', 'Lista VK', 'Lutelandet', 'Marker Vindpark', 'Mehuken', 'Midtfjellet', 'Måkaknuten', 'Nygårdsfjellet', 'Okla Vindkraftverk', 'Raggovidda', 'Raskiftet', 'Raudfjell Vindpark', 'Sandøy Vindkraft', 'Skomakerfjellet', 'Skudeneshavn', 'Smøla', 'Songkjølen', 'Stokkeland', 'Stokkfjellet', 'Storheia', 'Storøy vindpark', 'Svåheia', 'Sørmarkfjellet', 'Tellenes', 'Tindafjellet', 'Tysvær Vindpark', 'Valsn_Vimle', 'Valsneset', 'Vardafjell', 'Ytre Vikna', 'Ånstadblåheia', 'Øie', 'Øyfjell1', 'Øyfjell2']
+ Final windpark dataset shape: (7659656, 100)
+Final region dataset shape: (7659656, 100)
+Saved 'windpark' to: WindAi/deep_learning/created_datasets/windpark.parquet
+Saved 'region' to: WindAi/deep_learning/created_datasets/region.parquet
+
+###############################################################################
+Hábrók Cluster
+Job 18193735 for user s5549329
+Finished at: Wed Jul  9 16:48:15 CEST 2025
+
+Job details:
+============
+
+Job ID                         : 18193735
+Name                           : project.sh
+User                           : s5549329
+Partition                      : gpushort
+Nodes                          : v100v2gpu18
+Number of Nodes                : 1
+Cores                          : 8
+Number of Tasks                : 1
+State                          : COMPLETED  
+Submit                         : 2025-07-09T16:44:08
+Start                          : 2025-07-09T16:45:57
+End                            : 2025-07-09T16:48:11
+Reserved walltime              : 03:20:00
+Used walltime                  : 00:02:14
+Used CPU time                  : 00:02:14 (Efficiency: 12.46%)
+% User (Computation)           : 57.14%
+% System (I/O)                 : 42.86%
+Total memory reserved          : 62.50G
+Maximum memory used            : 35.00G
+Requested GPUs                 : 1
+Allocated GPUs                 : v100=1
+Max GPU utilization            : 0%
+Max GPU memory used            : 0.00 
+
+Acknowledgements:
+=================
+
+Please see this page for information about acknowledging Hábrók in your publications:
+
+https://wiki.hpc.rug.nl/habrok/introduction/scientific_output
+
+################################################################################

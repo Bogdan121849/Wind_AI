@@ -3,6 +3,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+
+WindAi/arima_pipeline/created_datasets/*.parquet
+WindAi/deep_learning/created_datasets/*.parquet
 # C extensions
 *.so
 
