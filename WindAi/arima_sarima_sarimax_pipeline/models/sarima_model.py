@@ -21,14 +21,6 @@ class SARIMA:
             raise FileNotFoundError(f"File not found: {self.file_path}")
 
         df = pd.read_parquet(self.file_path)
-        df = df.drop(columns=["bidding_area", "time"])
-
-        df["power_MW"] = pd.to_numeric(df["power_MW"], errors="coerce")
-        nan_count = df["power_MW"].isnull().sum()
-        print(f"{os.path.basename(self.file_path)}: dtype={df['power_MW'].dtype}, NaNs={nan_count}")
-        
-        df = df.dropna(subset=["power_MW"])
-
         series = df["power_MW"].values
 
         if len(series) <= self.forecast_horizon:
@@ -110,8 +102,8 @@ class SARIMA:
 
 if __name__ == "__main__":
     for i in range(1, 5):
-        file_path = f"C:/competition/windAI_rug/created_datasets/arima_power_no{i}.parquet"
-        plot_save_path = f"C:/competition/windAI_rug/datasets_figures/forecast_vs_actual_61h_sarima_{i}.png"
+        file_path = f"/home2/s5549329/windAI_rug/WindAi/arima_sarima_sarimax_pipeline/created_datasets/arima_power_elspot_no{i}.parquet"
+        plot_save_path = f"/home2/s5549329/windAI_rug/WindAi/arima_sarima_sarimax_pipeline/results/forecast_vs_actual_61h_sarima_{i}.png"
 
         sarima_model = SARIMA(
             file_path=file_path,

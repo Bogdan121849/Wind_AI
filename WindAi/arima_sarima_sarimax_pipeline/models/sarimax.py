@@ -33,17 +33,6 @@ class SARIMAXModel:
             raise FileNotFoundError(f"File not found: {self.file_path}")
 
         df = pd.read_parquet(self.file_path)
-        df = df.drop(columns=['bidding_area'], errors='ignore')
-
-        if 'time' in df.columns:
-            df['time'] = pd.to_datetime(df['time'])
-            df = df.sort_values('time')
-
-        df['power_MW'] = pd.to_numeric(df['power_MW'], errors='coerce')
-        for col in self.exog_cols:
-            df[col] = pd.to_numeric(df[col], errors='coerce')
-
-        df = df.dropna(subset=['power_MW'] + self.exog_cols)
 
         y = df['power_MW'].values
         exog = df[self.exog_cols].values if self.exog_cols else None

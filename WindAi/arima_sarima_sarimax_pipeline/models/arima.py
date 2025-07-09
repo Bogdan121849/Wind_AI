@@ -55,19 +55,34 @@ class Arima:
     def save_model(self):
         pass
 
-    def plot_forecast(self):
+    def plot_forecast_custom(self, save_path=None):
         plt.figure(figsize=(10, 5))
         plt.plot(self.test[:61], label="True", marker="o")
         plt.plot(self.forecast[:61], label="Forecast", marker="x")
         plt.legend()
-        plt.title("First 61-hour Forecast vs Actual")
+        plt.title(f"First 61-hour Forecast vs Actual for {self.region_number}")
         plt.xlabel("Hour")
         plt.ylabel("Power (MW)")
         plt.grid(True)
 
-        plt.savefig(f"WindAi/arima_pipeline/results/arima_forecast_vs_actual_61h_{self.region_number}.png", dpi=300)  
+        if save_path:
+            os.makedirs(os.path.dirname(save_path), exist_ok=True)
+            plt.savefig(save_path, dpi=300)
+            plt.close()
+        else:
+            plt.show()
 
     def summary(self):
         if self.model_fit:
             print(self.model_fit.summary())
+
+    def run_all(self, plot_save_path=None):
+        try:
+            self.load_data()
+            self.fit()
+            self.evaluate()
+            self.plot_forecast_custom(plot_save_path)
+            self.summary()
+        except Exception as e:
+            print(f"Error in {os.path.basename(self.file_path)}: {e}")
 
