@@ -2,7 +2,7 @@
 #SBATCH --time=03:20:00         
 #SBATCH --partition=gpu         
 #SBATCH --gres=gpu:1            
-#SBATCH --mem=32000              
+#SBATCH --mem=64000              
 
 # Load required modules
 module load Python/3.10.4-GCCcore-11.3.0

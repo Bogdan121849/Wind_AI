@@ -133,7 +133,7 @@ class Preprocessing_raw:
         print(f"Final region dataset shape: {df_region.shape}")
         return df_region
     
-    def save_datasets(self, save_dir="WindAi/created_datasets", **dataframes):
+    def save_datasets(self, save_dir="WindAi/deep_learning/created_datasets", **dataframes):
         os.makedirs(save_dir, exist_ok=True)
 
         for name, df in dataframes.items():

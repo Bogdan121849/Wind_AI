@@ -49,7 +49,7 @@ class Preprocess_power_sarima:
             for region, group in self.df.groupby("bidding_area")
         }
 
-    def save_regions(self, output_dir="WindAi/created_datasets"):
+    def save_regions(self, output_dir="WindAi/arima_pipeline/created_datasets"):
         os.makedirs(output_dir, exist_ok=True)
         for region, df_region in self.regions.items():
             filename = f"arima_power_{region.lower().replace(' ', '_')}.parquet"
