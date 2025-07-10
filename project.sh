@@ -15,6 +15,6 @@ source /home2/s5549329/windAI_rug/venv/bin/activate
 python --version
 
 # Run your Python project
-python /home2/s5549329/windAI_rug/WindAi/arima_sarima_sarimax_pipeline/models/run_models.py
+python /home2/s5549329/windAI_rug/WindAi/deep_learning/preprocessing/preprocessing_dl_data_region.py
 
 deactivate
