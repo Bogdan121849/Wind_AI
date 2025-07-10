@@ -2,7 +2,7 @@
 #SBATCH --time=03:20:00         
 #SBATCH --partition=gpu         
 #SBATCH --gres=gpu:1            
-#SBATCH --mem=32000              
+#SBATCH --mem=64000              
 
 # Load required modules
 module load Python/3.10.4-GCCcore-11.3.0
@@ -15,6 +15,6 @@ source /home2/s5549329/windAI_rug/venv/bin/activate
 python --version
 
 # Run your Python project
-python /home2/s5549329/windAI_rug/WindAi/arima_sarima_sarimax_pipeline/models/run_models.py
+python /home2/s5549329/windAI_rug/WindAi/deep_learning/preprocessing/preprocessing_dl_data_region.py
 
 deactivate

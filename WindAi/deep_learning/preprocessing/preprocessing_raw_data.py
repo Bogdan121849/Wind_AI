@@ -118,20 +118,28 @@ class Preprocessing_raw:
             .reset_index(name='num_windparks')
         )
 
-        # Merge into windpark-level data
-        df_region = pd.merge(df_windpark, region_park_counts, on='bidding_area', how='left')
-
-        # Drop windpark to generalize to region-level
+        df_region = df_windpark.copy()
         df_region.drop(columns=['windpark'], inplace=True)
 
-        # Sort and reorder columns
-        df_region = df_region.sort_values(by='time').reset_index(drop=True)
+        df_region = df_region.drop_duplicates(subset=["time", "bidding_area", "power_MW"])
+
+        features_to_avg = [col for col in df_region.columns if col not in ['time', 'bidding_area', 'power_MW']]
+        df_region_avg = (
+            df_region.groupby(['time', 'bidding_area'], as_index=False)[features_to_avg].mean(numeric_only=True)
+        )
+
+        power_df = df_region[['time', 'bidding_area', 'power_MW']].drop_duplicates()
+        df_region = pd.merge(df_region_avg, power_df, on=['time', 'bidding_area'], how='left')
+
+        df_region = pd.merge(df_region, region_park_counts, on='bidding_area', how='left')
+
         first_cols = ['time', 'bidding_area', 'num_windparks']
         other_cols = [col for col in df_region.columns if col not in first_cols]
         df_region = df_region[first_cols + other_cols]
 
         print(f"Final region dataset shape: {df_region.shape}")
         return df_region
+
     
     def save_datasets(self, save_dir="WindAi/deep_learning/created_datasets", **dataframes):
         os.makedirs(save_dir, exist_ok=True)
