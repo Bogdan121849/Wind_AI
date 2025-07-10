@@ -6,7 +6,7 @@ class Preprocessing_DL_region:
     def __init__(self, path, region_name, features_to_drop, scale=True):
         self.path = path
         self.region_name = region_name
-        self.features_to_drop = features_to_drop or ["power_MW", "bidding_area", "time"]
+        self.features_to_drop = features_to_drop or ["power_MW", "bidding_area"]
         self.scale = scale
         self.scaler = StandardScaler() if scale else None
         self.target = None
@@ -39,11 +39,11 @@ class Preprocessing_DL_region:
 
         region_df = region_df.dropna(subset=["power_MW"])
 
-        region_df = self._add_cyclic_time_features(region_df)
+        region_df = self._add_cyclic_time_features(region_df, drop_original=False)
 
         self.target = region_df["power_MW"].values
 
-        features = region_df.drop(columns=self.features_to_drop, errors="ignore")
+        features = region_df.drop(columns=self.features_to_drop + ["num_windparks"], errors="ignore")
         features = features.select_dtypes(include=["number"])
 
         if self.scale:
@@ -54,6 +54,11 @@ class Preprocessing_DL_region:
 
         df_combined = self.features_scaled.copy()
         df_combined["power_MW"] = self.target
+
+        non_numeric = region_df.select_dtypes(exclude=["number"]).copy()
+        non_numeric = non_numeric.loc[df_combined.index]
+
+        df_combined = pd.concat([non_numeric, df_combined], axis=1)
 
         if save_path:
             file_name = f"{save_path}/scaled_features_power_MW_{self.region_name}.parquet"
@@ -66,8 +71,8 @@ class Preprocessing_DL_region:
 if __name__ == "__main__":
     preprocessor = Preprocessing_DL_region(
         path="/home2/s5549329/windAI_rug/WindAi/deep_learning/created_datasets/region.parquet",
-        region_name="ELSPOT NO4",
-        features_to_drop=["power_MW", "bidding_area", "time"]
+        region_name="ELSPOT NO3",
+        features_to_drop=["power_MW", "bidding_area"]
     )
 
     X, y = preprocessor.fit_transform()
