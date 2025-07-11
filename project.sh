@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --time=03:20:00         
+#SBATCH --time=06:20:00         
 #SBATCH --partition=gpu         
 #SBATCH --gres=gpu:1            
 #SBATCH --mem=64000              
@@ -15,6 +15,6 @@ source /home2/s5549329/windAI_rug/venv/bin/activate
 python --version
 
 # Run your Python project
-python /home2/s5549329/windAI_rug/WindAi/deep_learning/preprocessing/preprocessing_dl_data_region.py
+python /home2/s5549329/windAI_rug/WindAi/deep_learning/models/RNN.py
 
 deactivate

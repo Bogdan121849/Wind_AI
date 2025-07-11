@@ -1,9 +1,10 @@
 import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
+import pandas as pd
 
 
-class WindowGenerator():
+class WindowGenerator:
     def __init__(self, input_width, label_width, shift,
                 train_df, val_df, test_df,
                 label_columns=None):
@@ -25,7 +26,7 @@ class WindowGenerator():
         self.label_width = label_width
         self.shift = shift
 
-        self.total_window_size = input_width + shift
+        self.total_window_size = input_width + shift + label_width
 
         self.input_slice = slice(0, input_width)
         self.input_indices = np.arange(self.total_window_size)[self.input_slice]
@@ -81,6 +82,47 @@ class WindowGenerator():
     @property
     def test(self):
         return self.make_dataset(self.test_df)
+
+if __name__ == "__main__":
+    df = pd.read_parquet("/home2/s5549329/windAI_rug/WindAi/deep_learning/created_datasets/scaled_features_power_MW_ELSPOT NO1.parquet")
+
+    df = df.drop(columns=["time", "bidding_area"], errors="ignore")
+    
+    print(f"Loaded full dataset with shape: {df.shape}")
+    input_width = 48
+    label_width = 61
+    test_size = input_width + label_width
+
+    test_df = df[-test_size:]
+    usable_df = df[:-test_size]
+
+    n_usable = len(usable_df)
+    train_df = usable_df[:int(n_usable * 0.7)]
+    val_df   = usable_df[int(n_usable * 0.7):]
+
+    print(f"\nSplitting:")
+    print(f"Usable data: {usable_df.shape}")
+    print(f"Train: {train_df.shape}")
+    print(f"Validation: {val_df.shape}")
+    print(f"Test (last 85 rows): {test_df.shape}")
+
+
+    window = WindowGenerator(
+        input_width=48,
+        label_width=61,
+        shift=0,
+        train_df=train_df,
+        val_df=val_df,
+        test_df=test_df,
+        label_columns=["power_MW"]
+    )
+
+    for batch_inputs, batch_labels in window.train.take(1):
+        print("Inputs shape:", batch_inputs.shape)
+        print("Labels shape:", batch_labels.shape)
+
+
+
 
 
 
