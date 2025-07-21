@@ -19,34 +19,26 @@ class RNN:
 
     def _build_model(self):
         model = tf.keras.Sequential([
-        tf.keras.layers.Input(shape=(self.input_width, self.num_features)),
-        tf.keras.layers.GaussianNoise(0.05),  
+            tf.keras.layers.Input(shape=(self.input_width, self.num_features)),
+            tf.keras.layers.LSTM(128, return_sequences=True),
+            tf.keras.layers.Dropout(0.2),
 
-        tf.keras.layers.GRU(64, return_sequences=False, kernel_regularizer=tf.keras.regularizers.l2(1e-4)),
-        tf.keras.layers.LayerNormalization(),
-        tf.keras.layers.Dropout(0.3),
+            tf.keras.layers.LSTM(64, return_sequences=True),
+            tf.keras.layers.Dropout(0.2),
 
-        tf.keras.layers.RepeatVector(self.label_width),
+            tf.keras.layers.Lambda(lambda x: x[:, -61:, :]),  # Keep last 61 time steps
+            tf.keras.layers.TimeDistributed(tf.keras.layers.Dense(1))
+        ])
 
-        tf.keras.layers.GRU(32, return_sequences=True, kernel_regularizer=tf.keras.regularizers.l2(1e-4)),
-        tf.keras.layers.LayerNormalization(),
-        tf.keras.layers.Dropout(0.3),
-
-        tf.keras.layers.TimeDistributed(tf.keras.layers.Dense(64, activation='relu')),
-        tf.keras.layers.Dropout(0.2),
-        tf.keras.layers.TimeDistributed(tf.keras.layers.Dense(32, activation='relu')),
-        tf.keras.layers.Dropout(0.2),
-        tf.keras.layers.TimeDistributed(tf.keras.layers.Dense(1))
-    ])
-        
         model.compile(
             optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3),
-            loss = tf.keras.losses.Huber(delta=1.0),
+            loss=tf.keras.losses.Huber(delta=1.0),  
             metrics=['mae']
         )
         return model
+
     
-    def fit(self, window, weights_dir, epochs=20):
+    def fit(self, window, weights_dir, epochs=100):
         early_stop = tf.keras.callbacks.EarlyStopping(
             monitor='val_loss',
             patience=20,
@@ -82,6 +74,7 @@ class RNN:
             prediction = self.model.predict(x)
         return prediction, y
     
+        
     def save_weights(self, filepath):
         self.model.save_weights(filepath)
         print(f" Model weights saved to: {filepath}")
@@ -147,7 +140,7 @@ class RNN:
         print(f"   - MAE:  {mae:.2f}")
     
 if __name__ == "__main__":
-    input_width = 72
+    input_width = 168
     label_width = 61
     shift = 0
     total_window = input_width + label_width + shift
@@ -157,19 +150,19 @@ if __name__ == "__main__":
     plot_dir = "/home2/s5549329/windAI_rug/WindAi/deep_learning/results"
 
     for region_number in range(1, 5):  # NO1 → NO4
-        region_name = f"ELSPOT NO{region_number}"
+        region_name = f"NO{region_number}"
         print(f"\n--- Training for {region_name} ---")
 
         # Load dataset
         path = os.path.join(data_dir, f"scaled_features_power_MW_{region_name}.parquet")
-        df = pd.read_parquet(path).drop(columns=["time", "bidding_area"], errors="ignore")
+        df = pd.read_parquet(path).drop(columns=["time"], errors="ignore")
 
         # Split into train/val/test
-        test_df = df[-total_window:]
-        usable_df = df[:-total_window]
+        test_df = df[-(input_width + 61):]  # Make sure test includes full 168+61 window
+        usable_df = df[:-(input_width + 61)]
         n_usable = len(usable_df)
         train_df = usable_df[:int(n_usable * 0.7)]
-        val_df   = usable_df[int(n_usable * 0.7):]
+        val_df = usable_df[int(n_usable * 0.7):]
 
         # Window
         window = WindowGenerator(
@@ -182,7 +175,7 @@ if __name__ == "__main__":
             label_columns=["power_MW"]
         )
 
-        for x_batch, _ in window.train.take(1):
+        for x_batch, y_batch in window.train.take(1):
             input_shape = x_batch.shape[1:]
 
         # Model
@@ -199,6 +192,6 @@ if __name__ == "__main__":
         rnn.evaluate_model(window.train, "Train")
         rnn.evaluate_model(window.val, "Validation")
 
-        # Forecast
+        # Forecast 61 hours autoregressively
         pred, y_true = rnn.predict_last_window(window)
         rnn.plot_prediction(pred, y_true, save_path=os.path.join(plot_dir, f"forecast_plot_elspot_no{region_number}.png"))
