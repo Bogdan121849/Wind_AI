@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 from sklearn.preprocessing import StandardScaler
+import os
 
 def add_lag_features(df, target_col='power_MW', max_lag=7):
     for lag in range(1, max_lag + 1):
@@ -9,10 +10,9 @@ def add_lag_features(df, target_col='power_MW', max_lag=7):
 
 
 class Preprocessing_DL_region:
-    def __init__(self, path, region_name, features_to_drop, scale=True):
+    def __init__(self, path, region_name, scale=True):
         self.path = path
         self.region_name = region_name
-        self.features_to_drop = features_to_drop 
         self.scale = scale
         self.scaler = StandardScaler() if scale else None
         self.target = None
@@ -41,32 +41,28 @@ class Preprocessing_DL_region:
 
     def fit_transform(self, save_path="/home2/s5549329/windAI_rug/WindAi/deep_learning/created_datasets"):
         df = pd.read_parquet(self.path)
-        region_df = df[df["bidding_area"] == self.region_name].copy()
+        region_df = df.copy()
 
         region_df = self._add_cyclic_time_features(region_df, drop_original=False)
         region_df = add_lag_features(region_df, target_col="power_MW", max_lag=7)
 
         region_df = region_df.dropna().reset_index(drop=True)
+        features = region_df.select_dtypes(include=["number"]).copy()
 
-        features = region_df.drop(columns=self.features_to_drop, errors="ignore")
-        features = features.select_dtypes(include=["number"])
+        cyclic_cols = ["Day sin", "Day cos", "Year sin", "Year cos"]
+        cyclic_features = features[cyclic_cols]
+        features_to_scale = features.drop(columns=cyclic_cols)
 
         if self.scale:
-            features_scaled = self.scaler.fit_transform(features)
-            self.features_scaled = pd.DataFrame(features_scaled, columns=features.columns, index=features.index)
+            scaled_array = self.scaler.fit_transform(features_to_scale)
+            scaled_features = pd.DataFrame(scaled_array, columns=features_to_scale.columns, index=features_to_scale.index)
         else:
-            self.features_scaled = features.copy()
+            scaled_features = features_to_scale.copy()
+
+        self.features_scaled = pd.concat([scaled_features, cyclic_features], axis=1)
 
         self.target = self.features_scaled["power_MW"].values
         self.features_scaled = self.features_scaled.drop(columns=["power_MW"])
-
-        temp_df = self.features_scaled.copy()
-        temp_df["power_MW"] = self.target
-        corr = temp_df.corr()["power_MW"].abs()
-        selected_features = corr[corr > 0.46].index.tolist()
-        selected_features.remove("power_MW")  
-
-        self.features_scaled = self.features_scaled[selected_features]
 
         df_combined = self.features_scaled.copy()
         df_combined["power_MW"] = self.target
@@ -85,10 +81,16 @@ class Preprocessing_DL_region:
 
 
 if __name__ == "__main__":
-    preprocessor = Preprocessing_DL_region(
-        path="/home2/s5549329/windAI_rug/WindAi/deep_learning/created_datasets/region.parquet",
-        region_name="ELSPOT NO4",
-        features_to_drop=["num_windparks", "bidding_area"]
-    )
+    input_dir = "/home2/s5549329/windAI_rug/WindAi/deep_learning/created_datasets"
+    output_dir = input_dir 
 
-    X, y = preprocessor.fit_transform()
+    for filename in os.listdir(input_dir):
+        if filename.endswith(".parquet"):
+            filepath = os.path.join(input_dir, filename)
+            region_name = os.path.splitext(filename)[0]
+            preproc_dl = Preprocessing_DL_region(filepath, region_name)
+            preproc_dl.fit_transform()
+
+
+
+  
