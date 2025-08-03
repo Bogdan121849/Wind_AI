@@ -1,7 +1,7 @@
 #!/bin/bash
-#SBATCH --time=16:00:00         
+#SBATCH --time=08:00:00         
 #SBATCH --partition=gpu         
-#SBATCH --gres=gpu:2            
+#SBATCH --gres=gpu:1            
 #SBATCH --mem=32000
 
 module spider CUDA
@@ -24,7 +24,7 @@ echo "Running on GPU node..."
 python -c "import tensorflow as tf; print('TF version:', tf.__version__); print('GPU:', tf.config.list_physical_devices('GPU')); print('CUDA version:', tf.sysconfig.get_build_info().get('cuda_version')); print('cuDNN version:', tf.sysconfig.get_build_info().get('cudnn_version'))"
 
 # Run your Python script
-python /home2/s5549329/windAI_rug/WindAi/deep_learning/models/GRU_main.py
+python /home2/s5549329/windAI_rug/WindAi/deep_learning/models/GRU_weak.py
 
 # Deactivate environment
 deactivate

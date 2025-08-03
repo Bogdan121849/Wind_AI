@@ -9,39 +9,60 @@ from sklearn.metrics import mean_squared_error, mean_absolute_error
 import matplotlib.pyplot as plt
 
 class RNN:
-    def __init__(self, input_width, label_width, num_features, region_number):
+    def __init__(self, input_width, label_width, num_features, region_number, name="GRU"):
         self.input_width = input_width
         self.label_width = label_width
         self.num_features = num_features
         self.region_number = region_number
+        self.name = name
 
         self.model = self._build_model()
 
     def _build_model(self):
         model = tf.keras.Sequential()
         model.add(tf.keras.layers.Input(shape=(self.input_width, self.num_features)))
-        model.add(tf.keras.layers.GaussianNoise(0.05))
+        model.add(tf.keras.layers.GaussianNoise(0.1))
 
         model.add(tf.keras.layers.GRU(512, return_sequences=True, kernel_regularizer=tf.keras.regularizers.l2(1e-3)))
-        model.add(tf.keras.layers.Dropout(0.2))
+        model.add(tf.keras.layers.Dropout(0.4))
         model.add(tf.keras.layers.LayerNormalization())
         model.add(tf.keras.layers.GRU(512, return_sequences=True, kernel_regularizer=tf.keras.regularizers.l2(1e-3)))
-        model.add(tf.keras.layers.Dropout(0.2))
+        model.add(tf.keras.layers.Dropout(0.4))
         model.add(tf.keras.layers.LayerNormalization())
         model.add(tf.keras.layers.GRU(512, return_sequences=True,kernel_regularizer=tf.keras.regularizers.l2(1e-3)))
+        model.add(tf.keras.layers.Dropout(0.4))
+        model.add(tf.keras.layers.LayerNormalization())
+        model.add(tf.keras.layers.GRU(256, return_sequences=True,kernel_regularizer=tf.keras.regularizers.l2(1e-3)))
         model.add(tf.keras.layers.Dropout(0.3))
         model.add(tf.keras.layers.LayerNormalization())
-        model.add(tf.keras.layers.Lambda(lambda x: x[:, -61:, :]))
-        model.add(tf.keras.layers.TimeDistributed(tf.keras.layers.Dense(16, activation='relu')))
+        model.add(tf.keras.layers.GRU(128, return_sequences=True,kernel_regularizer=tf.keras.regularizers.l2(1e-3)))
+        model.add(tf.keras.layers.Dropout(0.2))
+        model.add(tf.keras.layers.LayerNormalization())
+        model.add(tf.keras.layers.TimeDistributed(tf.keras.layers.Dense(64, activation='relu')))
+        model.add(tf.keras.layers.Dropout(0.3))
+        model.add(tf.keras.layers.TimeDistributed(tf.keras.layers.Dense(32, activation='relu')))
         model.add(tf.keras.layers.TimeDistributed(tf.keras.layers.Dense(1)))
 
         def combined_loss(y_true, y_pred):
             mse = tf.keras.losses.mean_squared_error(y_true, y_pred)
             mae = tf.keras.losses.mean_absolute_error(y_true, y_pred)
-            return 0.8 * tf.reduce_mean(mse) + 0.2 * tf.reduce_mean(mae)
+            huber = tf.keras.losses.huber(y_true, y_pred, delta=1.0)
+
+            pred_diff = y_pred[:, 1:, :] - y_pred[:, :-1, :]
+            smoothness = tf.reduce_mean(tf.square(pred_diff))
+
+            return (0.4 * tf.reduce_mean(mse) + 
+                   0.3 * tf.reduce_mean(mae) + 
+                   0.25 * tf.reduce_mean(huber) + 
+                   0.05 * smoothness)
 
         model.compile(
-            optimizer=tf.keras.optimizers.Adam(learning_rate=5e-5),
+            optimizer=tf.keras.optimizers.Adam(learning_rate=2e-4,
+                        beta_1=0.9, 
+                        beta_2=0.999,
+                        epsilon=1e-7,  
+                        clipnorm=1.0
+                        ),
             loss=combined_loss,
             metrics=["mae", "mse"]
         )
@@ -51,32 +72,38 @@ class RNN:
     def fit(self, window, weights_dir, epochs=100):
         early_stop = tf.keras.callbacks.EarlyStopping(
             monitor="val_loss",
-            patience=15,
+            patience=25,
             restore_best_weights=True,
-            min_delta=1e-4
+            min_delta=1e-6
         )
 
-        # lr_schedule = tf.keras.callbacks.ReduceLROnPlateau(
+        callbacks = [early_stop]
+
+        # reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(
         #     monitor="val_loss",
-        #         factor=0.7,
-        #         patience=5,
-        #         min_lr=1e-6,
-        #         verbose=1
+        #     factor=0.5,  
+        #     patience=5,   
+        #     min_lr=1e-8,  
+        #     verbose=1,
+        #     cooldown=3    
         # )
 
-        def cosine_annealing(epoch, lr):
-            if epoch < 10:  # Warm-up phase
-                return lr
-            else:
-                return 5e-5 * 0.5 * (1 + np.cos(np.pi * (epoch - 10) / (epochs - 10)))
-            
-        cosine_scheduler = tf.keras.callbacks.LearningRateScheduler(cosine_annealing, verbose=1)
+            # Reduce on plateau - more responsive
+        reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(
+            monitor="val_loss",
+            factor=0.7,  # Less aggressive reduction
+            patience=8,   # Faster response
+            min_lr=1e-7,
+            verbose=1,
+            cooldown=2
+        )
+        callbacks.append(reduce_lr)
 
         history = self.model.fit(
                 window.train,
                 validation_data=window.val,
                 epochs=epochs,
-                callbacks=[early_stop, cosine_scheduler]
+                callbacks=callbacks
             )
         return history
     
@@ -155,7 +182,7 @@ class RNN:
 
 if __name__ == "__main__":
     region_number = 1  # You can loop over multiple later
-    input_width = 168
+    input_width = 61
     label_width = 61
     shift = 0
 
@@ -194,14 +221,14 @@ if __name__ == "__main__":
         history = rnn.fit(window, weight_dir, epochs=100)
 
         pred, y_true = rnn.predict_last_window(window)
-        forecast_plot_path = os.path.join(plot_dir, f"forecast_plot_trial_NO{region_number}.png")
+        forecast_plot_path = os.path.join(plot_dir, f"forecast_plot_trial_NO{region_number}_{rnn.name}.png")
         rnn.plot_prediction(pred, y_true, save_path=forecast_plot_path)
 
-        learning_plot_path = os.path.join(plot_dir, f"learning_curve_trial_NO{region_number}.png")
+        learning_plot_path = os.path.join(plot_dir, f"learning_curve_trial_NO{region_number}_{rnn.name}.png")
         rnn.plot_learning_curves(history, save_path=learning_plot_path)
 
         # Optional: Save weights
-        rnn.save_weights(os.path.join(weight_dir, f"rnn_weights_NO{region_number}.h5"))
+        rnn.save_weights(os.path.join(weight_dir, f"rnn_weights_NO{region_number}_{rnn.name}.h5"))
 
         # Optional: Evaluate performance on test set
         rnn.evaluate_model(window.test, dataset_name="Test")
