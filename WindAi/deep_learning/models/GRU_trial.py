@@ -201,8 +201,17 @@ def objective(trial):
         label_columns=["power_MW"]
     )
 
-    for x_batch, _ in window.train.take(1):
-        input_shape = x_batch.shape[1:]
+    for x_batch, y_batch in window.train.take(1):
+            input_shape = x_batch.shape[1:]
+            output_shape = y_batch.shape[1:]
+            print(f"Input shape (X): {input_shape}")
+            print(f"Output shape (Y): {output_shape}")
+            print(f"Number of input features: {input_shape[-1]}")
+            print("\nFirst input timestep (x[0, 0, :]):")
+            print(x_batch[0, 0, :].numpy())
+
+            print("\nFirst label timestep (y[0, 0, :]):")
+            print(y_batch[0, 0, :].numpy())
 
     rnn = RNN_trial(input_width, label_width, input_shape[-1], region_number)
     rnn.build_with_trial(trial)

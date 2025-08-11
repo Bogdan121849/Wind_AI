@@ -49,6 +49,10 @@ class WindowGenerator:
             labels = tf.stack(
                 [labels[:, :, self.column_indices[name]] for name in self.label_columns],
                 axis=-1)
+            
+            label_indices = [self.column_indices[name] for name in self.label_columns]
+            input_indices = [i for i in range(features.shape[2]) if i not in label_indices]
+            inputs = tf.gather(inputs, input_indices, axis=-1)
 
         # Slicing doesn't preserve static shape information, so set the shapes
         # manually. This way the `tf.data.Datasets` are easier to inspect.
@@ -65,7 +69,7 @@ class WindowGenerator:
         sequence_length=self.total_window_size,
         sequence_stride=1,
         shuffle=True,
-        batch_size=32,)
+        batch_size=64)
 
         ds = ds.map(self.split_window)
 
