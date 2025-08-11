@@ -3,11 +3,12 @@ import numpy as np
 from sklearn.preprocessing import StandardScaler
 import os
 
+
+
 def add_lag_features(df, target_col='power_MW', max_lag=7):
     for lag in range(1, max_lag + 1):
         df[f"{target_col}_lag{lag}"] = df[target_col].shift(lag)
     return df
-
 
 class Preprocessing_DL_region:
     def __init__(self, path, region_name, scale=True):
@@ -17,6 +18,32 @@ class Preprocessing_DL_region:
         self.scaler = StandardScaler() if scale else None
         self.target = None
         self.features_scaled = None
+
+    def _convert_all_wind_components(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Converts all wind speed + direction pairs in the DataFrame to Cartesian (Wx, Wy).
+        Expected naming convention: wind speed = ws10m_{suffix}, direction = wd10m_{suffix}
+        """
+        wind_pairs = []
+
+        # Identify all suffixes where both ws10m_xx and wd10m_xx exist
+        for col in df.columns:
+            if col.startswith("ws10m_"):
+                suffix = col.replace("ws10m_", "")
+                dir_col = f"wd10m_{suffix}"
+                if dir_col in df.columns:
+                    wind_pairs.append((col, dir_col, suffix))
+
+        # Convert each pair
+        for ws_col, wd_col, suffix in wind_pairs:
+            if suffix in ["now", "mean", "std"]:
+                wv = df.pop(ws_col)
+                wd_rad = df.pop(wd_col) * np.pi / 180.0
+                df[f"Wx_{suffix}"] = wv * np.cos(wd_rad)
+                df[f"Wy_{suffix}"] = wv * np.sin(wd_rad)
+
+        return df
+
 
     def _add_cyclic_time_features(self, df: pd.DataFrame, time_col: str = "time", drop_original: bool = True) -> pd.DataFrame:
         """
@@ -43,10 +70,12 @@ class Preprocessing_DL_region:
         df = pd.read_parquet(self.path)
         region_df = df.copy()
 
+        region_df = self._convert_all_wind_components(region_df)
         region_df = self._add_cyclic_time_features(region_df, drop_original=False)
         region_df = add_lag_features(region_df, target_col="power_MW", max_lag=7)
 
         region_df = region_df.dropna().reset_index(drop=True)
+
         features = region_df.select_dtypes(include=["number"]).copy()
 
         cyclic_cols = ["Day sin", "Day cos", "Year sin", "Year cos"]
@@ -79,17 +108,6 @@ class Preprocessing_DL_region:
 
         return self.features_scaled, self.target
 
-
-if __name__ == "__main__":
-    input_dir = "/home2/s5549329/windAI_rug/WindAi/deep_learning/created_datasets"
-    output_dir = input_dir 
-
-    for filename in os.listdir(input_dir):
-        if filename.endswith(".parquet"):
-            filepath = os.path.join(input_dir, filename)
-            region_name = os.path.splitext(filename)[0]
-            preproc_dl = Preprocessing_DL_region(filepath, region_name)
-            preproc_dl.fit_transform()
 
 
 

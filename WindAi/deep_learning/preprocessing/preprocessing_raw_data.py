@@ -1,5 +1,6 @@
 import pandas as pd
 import os
+import numpy as np
 
 
 def reshape_power_data(power_df):
@@ -75,26 +76,57 @@ class Preprocessing_raw:
         forecast_cols_mslp        = [col for col in df_forecast.columns if "mslp_" in col]
         forecast_cols_g           = [col for col in df_forecast.columns if "g10m_" in col]
 
-        df_forecast["ws10m_mean"]  = df_forecast[forecast_cols_w_speed].mean(axis=1)
-        df_forecast["ws10m_std"]   = df_forecast[forecast_cols_w_speed].std(axis=1)
-        df_forecast["wd10m_mean"]  = df_forecast[forecast_cols_w_direction].mean(axis=1)
-        df_forecast["wd10m_std"]   = df_forecast[forecast_cols_w_direction].std(axis=1)
+        df_forecast["ws10m_mean"]   = df_forecast[forecast_cols_w_speed].mean(axis=1)
+        df_forecast["ws10m_std"]    = df_forecast[forecast_cols_w_speed].std(axis=1)
+        df_forecast["ws10m_min"]    = df_forecast[forecast_cols_w_speed].min(axis=1)
+        df_forecast["ws10m_max"]    = df_forecast[forecast_cols_w_speed].max(axis=1)
+        df_forecast["ws10m_median"] = df_forecast[forecast_cols_w_speed].median(axis=1)
+
+        angles_rad = np.radians(df_forecast[forecast_cols_w_direction])
+
+        # Compute circular mean
+        mean_angle_rad = np.arctan2(
+            np.mean(np.sin(angles_rad), axis=1),
+            np.mean(np.cos(angles_rad), axis=1)
+        )
+        df_forecast["wd10m_mean"] = (np.degrees(mean_angle_rad) + 360) % 360
+
+        # Linear std deviation
+        df_forecast["wd10m_std"] = df_forecast[forecast_cols_w_direction].std(axis=1)
+
+
         df_forecast["t2m_mean"]    = df_forecast[forecast_cols_t].mean(axis=1)
         df_forecast["t2m_std"]     = df_forecast[forecast_cols_t].std(axis=1)
+        df_forecast["t2m_min"]     = df_forecast[forecast_cols_t].min(axis=1)
+        df_forecast["t2m_max"]     = df_forecast[forecast_cols_t].max(axis=1)
+        df_forecast["t2m_median"]  = df_forecast[forecast_cols_t].median(axis=1)
+
+
         df_forecast["rh2m_mean"]   = df_forecast[forecast_cols_rh].mean(axis=1)
         df_forecast["rh2m_std"]    = df_forecast[forecast_cols_rh].std(axis=1)
+        df_forecast["rh2m_min"]    = df_forecast[forecast_cols_rh].min(axis=1)
+        df_forecast["rh2m_max"]    = df_forecast[forecast_cols_rh].max(axis=1)
+        df_forecast["rh2m_median"] = df_forecast[forecast_cols_rh].median(axis=1)
+
         df_forecast["mslp_mean"]   = df_forecast[forecast_cols_mslp].mean(axis=1)
         df_forecast["mslp_std"]    = df_forecast[forecast_cols_mslp].std(axis=1)
+        df_forecast["mslp_min"]    = df_forecast[forecast_cols_mslp].min(axis=1)
+        df_forecast["mslp_max"]    = df_forecast[forecast_cols_mslp].max(axis=1)
+        df_forecast["mslp_median"] = df_forecast[forecast_cols_mslp].median(axis=1)
+
         df_forecast["g10m_mean"]   = df_forecast[forecast_cols_g].mean(axis=1)
         df_forecast["g10m_std"]    = df_forecast[forecast_cols_g].std(axis=1)
+        df_forecast["g10m_min"]    = df_forecast[forecast_cols_g].min(axis=1)
+        df_forecast["g10m_max"]    = df_forecast[forecast_cols_g].max(axis=1)
+        df_forecast["g10m_median"] = df_forecast[forecast_cols_g].median(axis=1)
 
         summary_cols = [
-            "ws10m_mean", "ws10m_std",
+            "ws10m_mean", "ws10m_std", "ws10m_min", "ws10m_max", "ws10m_median",
             "wd10m_mean", "wd10m_std",
-            "t2m_mean",   "t2m_std",
-            "rh2m_mean",  "rh2m_std",
-            "mslp_mean",  "mslp_std",
-            "g10m_mean",  "g10m_std"
+            "t2m_mean", "t2m_std", "t2m_min", "t2m_max", "t2m_median",
+            "rh2m_mean", "rh2m_std", "rh2m_min", "rh2m_max", "rh2m_median",
+            "mslp_mean", "mslp_std", "mslp_min", "mslp_max", "mslp_median",
+            "g10m_mean", "g10m_std", "g10m_min", "g10m_max", "g10m_median"
         ]
 
         df_forecast_avg = df_forecast.groupby(["sid", "time"])[summary_cols].mean().reset_index()
@@ -168,19 +200,3 @@ class Preprocessing_raw:
             path = os.path.join(save_dir, f"{name}.parquet")
             df.to_parquet(path, index=False)
             print(f"Saved '{name}' to: {path}")
-
-if __name__ == "__main__":
-    
-    
-    preproc = Preprocessing_raw(
-        met_forecast="/home2/s5549329/windAI_rug/WindAi/given_datasets/met_forecast.parquet",
-        met_nowcast="/home2/s5549329/windAI_rug/WindAi/given_datasets/met_nowcast.parquet",
-        power="/home2/s5549329/windAI_rug/WindAi/given_datasets/wind_power_per_bidzone.parquet",
-        meta="/home2/s5549329/windAI_rug/WindAi/given_datasets/windparks_bidzone.csv"
-    )
-
-    preproc.read_datasets()
-    preproc.time_cropping()
-    preproc.filter_common_windparks()
-    df_regions = preproc.create_region_dataset()
-    preproc.save_datasets(**df_regions)
