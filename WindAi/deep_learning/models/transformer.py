@@ -45,7 +45,7 @@ class TransformerForecast(Model):
                  label_width,
                  num_features,
                  region_number,
-                 name="Transformer",
+                 name="Transformer_0.15",
                  d_model=128,
                  num_heads=4,
                  ff_dim=256,
@@ -149,24 +149,36 @@ class TransformerForecast(Model):
         )
         return history
 
-    def predict_last_window(self, window):
+    def predict_test(self, window, first_batch_only=False):
         # prepare a test dataset with decoder‐inputs just like in training
         def map_fn(x, y):
-            # y: (batch, label_width, 1)
-            zero = tf.zeros_like(y[:, :1, :])           # (batch, 1, 1)
-            dec_in = tf.concat([zero, y[:, :-1, :]], 1)  # (batch, label_width, 1)
+            zero   = tf.zeros_like(y[:, :1, :])            # (batch,1,1)
+            dec_in = tf.concat([zero, y[:, :-1, :]], axis=1)
             return ({"encoder_input": x, "decoder_input": dec_in}, y)
 
         test_ds = window.test.map(map_fn)
 
-        # grab exactly one batch
-        for (inputs, y_true) in test_ds.take(1):
-            # run model
-            pred = self.model.predict(inputs, verbose=0)
-            return pred[:, -self.label_width:, :], y_true
+        if first_batch_only:
+            # grab exactly one batch
+            for (inputs, y_true) in test_ds.take(1):
+                pred = self.model.predict(inputs, verbose=0)
+                return pred[:, -self.label_width:, :], y_true.numpy()
 
-        # if we never entered the loop, the test set really is empty
-        raise ValueError("Test dataset is empty; cannot predict last window.")
+            # if we never entered the loop, the test set really is empty
+            raise ValueError("Test dataset is empty; cannot predict last window.")
+        
+        else:
+            # Otherwise: run over ALL batches and concatenate
+            preds, trues = [], []
+            for (inputs, y_true) in test_ds:
+                pred = self.model.predict(inputs, verbose=0)
+                preds.append(pred[:, -self.label_width:, :])
+                trues.append(y_true.numpy())
+
+            if not preds:
+                raise ValueError("Test dataset is empty; cannot predict all the windows.")
+
+            return np.concatenate(preds, axis=0), np.concatenate(trues, axis=0)
 
     def evaluate_model(self, dataset, dataset_name):
         y_trues, y_preds = [], []
@@ -190,56 +202,3 @@ class TransformerForecast(Model):
         print(f"   - MSE:  {mse:.2f}")
         print(f"   - MAE:  {mae:.2f}")
 
-
-if __name__ == "__main__":
-    region_number = 1
-    input_width  = 336
-    label_width  = 61
-    shift        = 0
-
-    data_dir   = "/home2/s5549329/windAI_rug/WindAi/deep_learning/created_datasets"
-    weight_dir = "/home2/s5549329/windAI_rug/WindAi/deep_learning/weights"
-    plot_dir   = "/home2/s5549329/windAI_rug/WindAi/deep_learning/results"
-
-    for region_number in range(1, 5):
-        print(f"\n========== Region NO{region_number} ==========")
-        path = f"{data_dir}/scaled_features_power_MW_NO{region_number}.parquet"
-        df = pd.read_parquet(path).drop(columns=["time"], errors="ignore")
-
-        test_df   = df[-(input_width + label_width):]
-        usable_df = df[:-(input_width + label_width)]
-        n = len(usable_df)
-        train_df = usable_df[:int(n * 0.7)]
-        val_df   = usable_df[int(n * 0.7):]
-
-        window = WindowGenerator(
-            input_width=input_width,
-            label_width=label_width,
-            shift=shift,
-            train_df=train_df,
-            val_df=val_df,
-            test_df=test_df,
-            label_columns=["power_MW"]
-        )
-
-        model = TransformerForecast(
-            input_width=input_width,
-            label_width=label_width,
-            num_features=window.train.element_spec[0].shape[-1],
-            region_number=region_number
-        )
-
-        model.summary()
-        history = model.fit(window, weight_dir, epochs=100)
-
-        pred, y_true = model.predict_last_window(window)
-        model.plot_prediction(
-            pred, y_true,
-            os.path.join(plot_dir, f"forecast_NO{region_number}_{model.name}.png")
-        )
-        model.plot_learning_curves(
-            history,
-            os.path.join(plot_dir, f"learning_NO{region_number}_{model.name}.png")
-        )
-
-        model.evaluate_model(window.test, dataset_name="Test")

@@ -12,15 +12,15 @@ MODEL_REGISTRY =  {
     #"Gru Deep" : GruDeep,
     #"Gru Weak" : GruWeak,
     #"LSTM" : LSTM,
-    "Transformer": TransformerForecast
+    "Transformer_0.15": TransformerForecast
 }
 
 
 def run(model_class, model_name,input_width=336, label_width=61, epochs=100):
     shift = 0
-    data_dir   = "/home2/s5549329/windAI_rug/WindAi/deep_learning/created_datasets"
-    weight_dir = "/home2/s5549329/windAI_rug/WindAi/deep_learning/weights"
-    plot_dir   = "/home2/s5549329/windAI_rug/WindAi/deep_learning/results"
+    data_dir   = "windAI_rug/WindAi/deep_learning/created_datasets"
+    weight_dir = "windAI_rug/WindAi/deep_learning/weights"
+    plot_dir   = "windAI_rug/WindAi/deep_learning/results"
 
     for region_number in range(1, 5):
         print(f"\n========== Training Region NO{region_number} ==========")
@@ -28,16 +28,11 @@ def run(model_class, model_name,input_width=336, label_width=61, epochs=100):
         # Load data
         path = f"{data_dir}/scaled_features_power_MW_NO{region_number}.parquet"
         df = pd.read_parquet(path).drop(columns=["time"], errors="ignore")
-
-        #  397
-        test_df   = df[-(input_width + label_width):]
-        # 44505 - 397 = 44108
-        usable_df = df[:-(input_width + label_width)]
-        n = len(usable_df)
-        # 30875
-        train_df = usable_df[:int(n * 0.7)]
-        # 13232
-        val_df   = usable_df[int(n * 0.7):]
+        
+        n = len(df)
+        train_df = df[:int(n * 0.7)]
+        val_df = df[int(n * 0.7): int(n * 0.85)]
+        test_df = df[int(n * 0.85):]
 
         # Create data window
         window = WindowGenerator(
@@ -63,7 +58,7 @@ def run(model_class, model_name,input_width=336, label_width=61, epochs=100):
         history = model.fit(window, weight_dir, epochs=epochs)
 
         # Save forecast plot
-        pred, y_true = model.predict_last_window(window)
+        pred, y_true = model.predict_test(window, first_batch_only=False)
         model.plot_prediction(
             pred, y_true,
             os.path.join(plot_dir, f"forecast_NO{region_number}_{model.name}.png")
