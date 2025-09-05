@@ -29,10 +29,14 @@ def run(model_class, model_name,input_width=336, label_width=61, epochs=100):
         path = f"{data_dir}/scaled_features_power_MW_NO{region_number}.parquet"
         df = pd.read_parquet(path).drop(columns=["time"], errors="ignore")
 
+        #  397
         test_df   = df[-(input_width + label_width):]
+        # 44505 - 397 = 44108
         usable_df = df[:-(input_width + label_width)]
         n = len(usable_df)
+        # 30875
         train_df = usable_df[:int(n * 0.7)]
+        # 13232
         val_df   = usable_df[int(n * 0.7):]
 
         # Create data window
