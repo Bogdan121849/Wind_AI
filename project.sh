@@ -24,7 +24,7 @@ echo "Running on GPU node..."
 python -c "import tensorflow as tf; print('TF version:', tf.__version__); print('GPU:', tf.config.list_physical_devices('GPU')); print('CUDA version:', tf.sysconfig.get_build_info().get('cuda_version')); print('cuDNN version:', tf.sysconfig.get_build_info().get('cudnn_version'))"
 
 # Run your Python script
-python /home2/s5549329/windAI_rug/WindAi/deep_learning/preprocessing/preprocessing_main.py
+python /home2/s5549329/windAI_rug/WindAi/deep_learning/models/main.py
 
 # Deactivate environment
 deactivate

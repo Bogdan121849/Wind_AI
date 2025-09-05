@@ -69,10 +69,19 @@ class Model(ABC):
     def summary(self):
         self.model.summary()
 
-    def predict_last_window(self, window):
-        for x, y in window.test.take(1):
-            prediction = self.model.predict(x)
-        return prediction, y
+    def predict_test(self, window, first_batch_only=False):
+
+        if first_batch_only:
+            for x, y in window.test.take(1):
+                prediction = self.model.predict(x)
+            return prediction, y
+        else:
+            preds, trues = [], []
+            for x, y in window.test:
+                pred = self.model.predict(x)
+                preds.append(pred)
+                trues.append(y.numpy())
+            return np.concatenate(preds, axis=0), np.concatenate(trues, axis=0)
 
     def save_weights(self, filepath):
         self.model.save_weights(filepath)
@@ -97,6 +106,7 @@ class Model(ABC):
         plt.tight_layout()
         plt.savefig(save_path)
         plt.show()
+        print(f"Forecast prediction saved to: {save_path}")
 
     def plot_learning_curves(self, history, save_path):
         df = pd.DataFrame(history.history)
