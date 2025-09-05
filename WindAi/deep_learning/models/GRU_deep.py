@@ -40,8 +40,9 @@ class GruDeep(Model):
         shared_features = tf.keras.layers.GRU(128, return_sequences=True, kernel_regularizer=tf.keras.regularizers.l2(1e-4))(x)
         shared_features = tf.keras.layers.Dropout(0.2)(shared_features)
         shared_features = tf.keras.layers.LayerNormalization()(shared_features)
+        #(batch_size, 336, 128)
         shared_features = tf.keras.layers.Lambda(lambda x: x[:, -self.label_width:, :])(shared_features)
-
+        #(batchh_size, 61)
         main_output = tf.keras.layers.TimeDistributed(tf.keras.layers.Dense(16, activation='relu'))(shared_features)
         main_output = tf.keras.layers.TimeDistributed(tf.keras.layers.Dense(1), name="main_output")(main_output)
 

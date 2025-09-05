@@ -20,6 +20,7 @@ def run_raw_preprocess():
     preproc.filter_common_windparks()
     df_regions = preproc.create_region_dataset()
     preproc.save_datasets(**df_regions)
+    return list(df_regions.keys())
 
 def run_dl_preprocess(region_names):
     os.makedirs(DL_OUT_DIR, exist_ok=True)
