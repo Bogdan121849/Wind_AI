@@ -44,12 +44,12 @@ class TransformerForecast(Model):
                  label_width,
                  num_features,
                  region_number,
-                 name="Transformer_0.15",
+                 name="Transformer_24h",
                  d_model=128,
                  num_heads=4,
                  ff_dim=256,
                  num_layers=2,
-                 decoder_causal=True  # <-- choose masked (True) or unmasked (False)
+                 decoder_causal=False  # masked -> True, 
                  ):
         self.input_width   = input_width
         self.label_width   = label_width
@@ -60,12 +60,12 @@ class TransformerForecast(Model):
         self.num_heads     = num_heads
         self.ff_dim        = ff_dim
         self.num_layers    = num_layers
-        self.decoder_causal = decoder_causal  # <-- store choice
+        self.decoder_causal = decoder_causal 
         self.model         = self._build_model()
 
     def _build_model(self):
         enc_in = tf.keras.Input((self.input_width, self.num_features), name="encoder_input")
-        dec_in = tf.keras.Input((self.label_width, 1),                name="decoder_input")
+        dec_in = tf.keras.Input((self.label_width, 1),name="decoder_input")
 
         proj_enc = tf.keras.layers.Dense(self.d_model, name="proj_enc")
         proj_dec = tf.keras.layers.Dense(self.d_model, name="proj_dec")
@@ -83,7 +83,6 @@ class TransformerForecast(Model):
         # Decoder stack
         x = x_dec
         for i in range(self.num_layers):
-            # --- THIS is the explicit if/else you asked for ---
             if self.decoder_causal:
                 # masked (causal) decoder self-attention
                 x = TransformerBlock(self.d_model, self.num_heads, self.ff_dim,
@@ -112,14 +111,13 @@ class TransformerForecast(Model):
         return model
 
     def fit(self, window, weights_dir, epochs=100):
-        # teacher forcing: decoder input = <0> + y[:-1]
         def map_fn(x, y):
             zero   = tf.zeros_like(y[:, :1, :])
             dec_in = tf.concat([zero, y[:, :-1, :]], axis=1)
             return ({"encoder_input": x, "decoder_input": dec_in}, y)
 
         train_ds = window.train.map(map_fn)
-        val_ds   = window.val  .map(map_fn)
+        val_ds   = window.val.map(map_fn)
 
         callbacks = [
             tf.keras.callbacks.EarlyStopping(monitor="val_loss", patience=10,

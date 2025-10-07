@@ -4,7 +4,6 @@ from sklearn.preprocessing import StandardScaler
 import os
 import pickle
 
-
 def add_lag_features(df, target_col='power_MW', max_lag=7):
     df = df.sort_values("time").copy()
     for lag in range(1, max_lag + 1):
@@ -13,19 +12,14 @@ def add_lag_features(df, target_col='power_MW', max_lag=7):
 
 class Preprocessing_DL_region:
     """
-    Aligns with the region folder structure produced by create_region_dataset().
-    Expects:
-      <base_dir>/<region_name>/
-        ├─ train.parquet
-        ├─ val.parquet
-        └─ test.parquet
-
-    It writes:
-      <base_dir>/<region_name>/processed/
-        ├─ train_scaled.parquet
-        ├─ val_scaled.parquet
-        ├─ test_scaled.parquet
-        └─ scaler.pkl
+    Reads region train/val/test parquet splits, engineers features,
+    fits scaler on TRAIN ONLY (excluding cyclic + target),
+    transforms val/test, and saves:
+      processed/train_scaled.parquet
+      processed/val_scaled.parquet
+      processed/test_scaled.parquet
+      processed/scaler.pkl         (dict: scaler, cols_to_scale, cyclic_cols)
+      processed/preproc_meta.pkl   (dict: feature_order, cols_to_scale, cyclic_cols)
     """
     def __init__(self, base_dir, region_name, scale=True, max_lag=7):
         self.base_dir = base_dir
@@ -39,10 +33,6 @@ class Preprocessing_DL_region:
         self.cyclic_cols_ = ["Day sin", "Day cos", "Year sin", "Year cos"]
 
     def _convert_all_wind_components(self, df: pd.DataFrame) -> pd.DataFrame:
-        """
-        Converts all matched pairs: ws10m_<suffix>, wd10m_<suffix> -> Wx_<suffix>, Wy_<suffix>
-        Only for suffix in {"now", "mean", "std"} (as in your engineered columns).
-        """
         df = df.copy()
         wind_pairs = []
         for col in df.columns:
@@ -51,7 +41,6 @@ class Preprocessing_DL_region:
                 dir_col = f"wd10m_{suffix}"
                 if dir_col in df.columns:
                     wind_pairs.append((col, dir_col, suffix))
-
         for ws_col, wd_col, suffix in wind_pairs:
             if suffix in ["now", "mean", "std"]:
                 wv = df.pop(ws_col)
@@ -61,46 +50,33 @@ class Preprocessing_DL_region:
         return df
 
     def _add_cyclic_time_features(self, df: pd.DataFrame, time_col: str = "time", drop_original: bool = False) -> pd.DataFrame:
-        """
-        Adds daily/yearly sinusoidal encodings. Keeps 'time' by default.
-        """
         df = df.copy()
         t = pd.to_datetime(df[time_col], errors="coerce")
         ts = t.view("int64") / 1e9  # seconds
-
         day = 24 * 60 * 60
         year = 365.2425 * day
-
         df["Day sin"]  = np.sin(ts * (2 * np.pi / day))
         df["Day cos"]  = np.cos(ts * (2 * np.pi / day))
         df["Year sin"] = np.sin(ts * (2 * np.pi / year))
         df["Year cos"] = np.cos(ts * (2 * np.pi / year))
-
         if drop_original:
             df = df.drop(columns=[time_col], errors="ignore")
         return df
 
     def _prepare_basic(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Wind components + cyclic time features; sort by time."""
         df = df.sort_values("time").copy()
         df = self._convert_all_wind_components(df)
         df = self._add_cyclic_time_features(df, drop_original=False)
         return df
 
     def _lag_with_history(self, curr: pd.DataFrame, prev_tail: pd.DataFrame | None) -> pd.DataFrame:
-        """
-        Compute lags on `concat(prev_tail, curr)` then drop the prepended rows
-        so that lags at the split boundary are valid and causal.
-        """
         if prev_tail is not None and len(prev_tail) > 0:
-            # ensure same columns
             missing_in_prev = [c for c in curr.columns if c not in prev_tail.columns]
             for c in missing_in_prev:
                 prev_tail[c] = np.nan
             prev_tail = prev_tail[curr.columns]
             work = pd.concat([prev_tail, curr], ignore_index=True)
             work = add_lag_features(work, target_col="power_MW", max_lag=self.max_lag)
-            # drop the prepended rows
             work = work.iloc[len(prev_tail):].reset_index(drop=True)
         else:
             work = add_lag_features(curr, target_col="power_MW", max_lag=self.max_lag)
@@ -126,14 +102,6 @@ class Preprocessing_DL_region:
 
     # ---------- main API ----------
     def fit_transform_splits(self):
-        """
-        Full pipeline with leakage-safe scaling:
-        - builds features on train/val/test (with causal lags)
-        - fits scaler on train features ONLY (excluding target + cyclic)
-        - transforms val/test with the same scaler
-        - saves 3 parquet files + scaler.pkl
-        Returns dict of (X, y) tuples for each split.
-        """
         # 1) Load raw splits
         train_raw = self._load_split("train")
         val_raw   = self._load_split("val")
@@ -175,18 +143,19 @@ class Preprocessing_DL_region:
             Xtr_scaled = Xtr.copy()
             Xtr_scaled[cols_to_scale] = self.scaler.fit_transform(Xtr[cols_to_scale])
 
-            # transform val/test
+            # transform val/test (align if any missing)
             Xva_scaled = Xva.copy()
             Xte_scaled = Xte.copy()
-            # align columns defensively
             for cols, Xd in [(cols_to_scale, Xva_scaled), (cols_to_scale, Xte_scaled)]:
                 missing = [c for c in cols if c not in Xd.columns]
                 for m in missing:
                     Xd[m] = 0.0
                 Xd[cols] = self.scaler.transform(Xd[cols])
-
         else:
             Xtr_scaled, Xva_scaled, Xte_scaled = Xtr, Xva, Xte
+
+        # ---- NEW: capture the exact feature order used downstream ----
+        feature_order = list(Xtr_scaled.columns)  # numeric features only, target excluded
 
         # 6) Reattach non-numerics for saving (time, etc.)
         def for_save(df_src: pd.DataFrame, X_scaled: pd.DataFrame, y: np.ndarray):
@@ -201,23 +170,39 @@ class Preprocessing_DL_region:
         va_out = for_save(va, Xva_scaled, yva)
         te_out = for_save(te, Xte_scaled, yte)
 
-        # 7) Save splits + scaler
+        # 7) Save splits + scaler + metadata
         self._save_split(tr_out, "train")
         self._save_split(va_out, "val")
         self._save_split(te_out, "test")
+
+        proc_dir = os.path.join(self._region_dir(), "processed")
+        os.makedirs(proc_dir, exist_ok=True)
+
         if self.scale:
-            with open(os.path.join(self._region_dir(), "processed", "scaler.pkl"), "wb") as f:
+            with open(os.path.join(proc_dir, "scaler.pkl"), "wb") as f:
                 pickle.dump(
                     {
                         "scaler": self.scaler,
                         "cols_to_scale": self.cols_to_scale_,
-                        "cyclic_cols": self.cyclic_cols_
+                        "cyclic_cols": self.cyclic_cols_,
                     },
                     f
                 )
+
+        # ---- save meta file the main will read ----
+        with open(os.path.join(proc_dir, "preproc_meta.pkl"), "wb") as f:
+            pickle.dump(
+                {
+                    "feature_order": feature_order,   
+                    "cols_to_scale": self.cols_to_scale_,
+                    "cyclic_cols":   self.cyclic_cols_,
+                },
+                f
+            )
 
         return {
             "train": (Xtr_scaled, ytr),
             "val":   (Xva_scaled, yva),
             "test":  (Xte_scaled, yte),
+            "feature_order": feature_order,
         }
